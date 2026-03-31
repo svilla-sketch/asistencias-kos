@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Nómina – {{ project.name }} Sem.{{ week.week_num }}{% endblock %}
+{% block head %}
+<style>
+  .payroll-table th, .payroll-table td { vertical-align: middle; font-size: .82rem; }
+  .trade-header td { background: #f0f4ff; font-weight: 700; font-size: .76rem;
+                     text-transform: uppercase; letter-spacing: .5px; color: #3730a3; }
+  .num-input { width: 90px; text-align: right; }
+  .pay-cell { font-weight: 600; }
+  .total-row td { background: #f8f9fa; font-weight: 700; border-top: 2px solid #dee2e6; }
+  .att-badge { display:inline-block; width:24px; height:24px; line-height:24px;
+               text-align:center; border-radius:50%; font-weight:700; font-size:.8rem; }
+  .att-6 { background:#d1fae5; color:#065f46; }
+  .att-5 { background:#fef3c7; color:#92400e; }
+  .att-low { background:#fee2e2; color:#991b1b; }
+  .att-0 { background:#f3f4f6; color:#9ca3af; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+  <a href="{{ url_for('payroll_list') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+  <div>
+    <h5 class="mb-0 fw-bold">
+      <i class="bi bi-cash-stack me-2"></i>{{ project.name }} —
+      Nómina Sem. {{ week.week_num }}: {{ week.week_start.strftime('%d %b') }} al {{ week.week_end.strftime('%d %b %Y') }}
+    </h5>
+    <small class="text-muted">
+      <a href="{{ url_for('attendance_form', pid=project.id, week_date=week_start.strftime('%Y-%m-%d')) }}"
+         class="text-decoration-none"><i class="bi bi-calendar-check me-1"></i>Ver asistencias</a>
+    </small>
+  </div>
+  {% if week.locked %}
+  <span class="badge locked-badge ms-2"><i class="bi bi-lock me-1"></i>Nómina cerrada</span>
+  {% endif %}
+</div>
+
+<!-- Totales resumen -->
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-2">
+    <div class="card text-center py-2">
+      <div class="fw-bold text-primary" style="font-size:1.3rem">${{ '{:,.0f}'.format(totals.total) }}</div>
+      <div class="text-muted" style="font-size:.75rem">Total nómina</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center py-2">
+      <div class="fw-bold text-info" style="font-size:1.3rem">${{ '{:,.0f}'.format(totals.attendance) }}</div>
+      <div class="text-muted" style="font-size:.75rem">Por asistencia</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center py-2">
+      <div class="fw-bold text-warning" style="font-size:1.3rem">${{ '{:,.0f}'.format(totals.extra) }}</div>
+      <div class="text-muted" style="font-size:.75rem">Destajo / ajustes</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center py-2">
+      <div class="fw-bold text-secondary" style="font-size:1.3rem">${{ '{:,.0f}'.format(totals.bonus) }}</div>
+      <div class="text-muted" style="font-size:.75rem">Bonos</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center py-2">
+      <div class="fw-bold" style="font-size:1.3rem;color:#1d4ed8">${{ '{:,.0f}'.format(totals.bank) }}</div>
+      <div class="text-muted" style="font-size:.75rem">Banco</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="card text-center py-2">
+      <div class="fw-bold text-success" style="font-size:1.3rem">${{ '{:,.0f}'.format(totals.cash) }}</div>
+      <div class="text-muted" style="font-size:.75rem">Efectivo</div>
+    </div>
+  </div>
+</div>
+
+{% if not workers %}
+<div class="card">
+  <div class="card-body text-center py-4 text-muted">No hay trabajadores activos en este proyecto.</div>
+</div>
+{% else %}
+<form method="post" id="payrollForm">
+  <div class="card mb-3">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table payroll-table mb-0">
+          <thead>
+            <tr>
+              <th style="min-width:180px">Trabajador</th>
+              <th class="text-center" style="width:50px">Días</th>
+              <th class="text-end" style="width:90px">Asistencia<br><small class="fw-normal text-muted">(col M)</small></th>
+              <th class="text-end" style="width:90px">Bono<br><small class="fw-normal text-muted">(col N)</small></th>
+              <th class="text-end" style="width:100px">Destajo/Ajuste<br><small class="fw-normal text-muted">(col O)</small></th>
+              <th style="min-width:120px">Motivo ajuste</th>
+              <th class="text-end fw-bold" style="width:90px">Total<br><small class="fw-normal text-muted">(col P)</small></th>
+              <th class="text-end" style="width:90px">Banco<br><small class="fw-normal text-muted">(col Q)</small></th>
+              <th class="text-end" style="width:90px">Efectivo<br><small class="fw-normal text-muted">(col R)</small></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set current_trade = namespace(val='') %}
+            {% for w in workers %}
+              {% if w.trade != current_trade.val %}
+                {% set current_trade.val = w.trade %}
+                <tr class="trade-header">
+                  <td colspan="9" class="py-1 px-3">
+                    <i class="bi bi-tools me-1"></i>{{ w.trade or 'Sin actividad' }}
+                  </td>
+                </tr>
+              {% endif %}
+              {% set pay = pay_map.get(w.id) %}
+              {% set att = att_map.get(w.id) %}
+              <tr data-worker="{{ w.id }}">
+                <td>
+                  <div class="fw-semibold">{{ w.name }}
+                    {% if not w.active %}
+                    <span class="badge bg-danger ms-1" title="Baja: {{ w.termination_date.strftime('%d/%m/%y') if w.termination_date else '' }}">BAJA</span>
+                    {% endif %}
+                  </div>
+                  <small class="text-muted">{{ w.position or '' }} –
+                    <span class="badge badge-{{ w.work_type }}">{{ w.work_type }}</span>
+                    {% if w.level %}<span class="badge bg-light text-dark border ms-1">{{ w.level }}</span>{% endif %}
+                  </small>
+                </td>
+                <td class="text-center">
+                  {% set days = att.days_total | int if att else 0 %}
+                  <span class="att-badge att-{{ days if days <= 6 else 6 }}{{ '' if days > 1 else '' }}
+                    {{ 'att-6' if days == 6 else 'att-5' if days == 5 else 'att-low' if days > 0 else 'att-0' }}">
+                    {{ days }}
+                  </span>
+                </td>
+                <!-- Col M: attendance pay (read-only, calculated) -->
+                <td class="text-end pay-cell text-info">
+                  ${{ '{:,.0f}'.format(pay.attendance_pay if pay else 0) }}
+                  {% if w.work_type == 'fijo' and pay and pay.fixed_pay %}
+                  <br><small class="text-primary">${{ '{:,.0f}'.format(pay.fixed_pay) }}</small>
+                  {% endif %}
+                </td>
+                <!-- Col N: bono -->
+                <td class="text-end">
+                  {% if not week.locked %}
+                  <input type="number" name="bonus_{{ w.id }}" class="form-control form-control-sm num-input pay-input"
+                    data-worker="{{ w.id }}" data-col="bonus"
+                    value="{{ pay.bonus_pay | int if pay else 0 }}" min="0" step="1">
+                  {% else %}
+                  ${{ '{:,.0f}'.format(pay.bonus_pay if pay else 0) }}
+                  {% endif %}
+                </td>
+                <!-- Col O: destajo / extra -->
+                <td class="text-end">
+                  {% if not week.locked %}
+                  <input type="number" name="extra_{{ w.id }}" class="form-control form-control-sm num-input pay-input"
+                    data-worker="{{ w.id }}" data-col="extra"
+                    value="{{ pay.extra_pay | int if pay else 0 }}" step="1">
+                  {% else %}
+                  ${{ '{:,.0f}'.format(pay.extra_pay if pay else 0) }}
+                  {% endif %}
+                </td>
+                <!-- Reason -->
+                <td>
+                  {% if not week.locked %}
+                  <input type="text" name="reason_{{ w.id }}" class="form-control form-control-sm"
+                    value="{{ pay.extra_reason if pay else '' }}" placeholder="—">
+                  {% else %}
+                  <span class="text-muted">{{ pay.extra_reason if pay else '—' }}</span>
+                  {% endif %}
+                </td>
+                <!-- Col P: total -->
+                <td class="text-end pay-cell fw-bold" id="total_{{ w.id }}">
+                  ${{ '{:,.0f}'.format(pay.total_pay if pay else 0) }}
+                </td>
+                <!-- Col Q: bank -->
+                <td class="text-end">
+                  {% if not week.locked %}
+                  <input type="number" name="bank_{{ w.id }}" class="form-control form-control-sm num-input pay-input"
+                    data-worker="{{ w.id }}" data-col="bank"
+                    value="{{ pay.bank_pay | int if pay else 0 }}" min="0" step="1">
+                  {% else %}
+                  <span class="text-primary">${{ '{:,.0f}'.format(pay.bank_pay if pay else 0) }}</span>
+                  {% endif %}
+                </td>
+                <!-- Col R: cash (auto = total - bank) -->
+                <td class="text-end text-success fw-semibold" id="cash_{{ w.id }}">
+                  ${{ '{:,.0f}'.format(pay.cash_pay if pay else 0) }}
+                </td>
+              </tr>
+            {% endfor %}
+            <!-- Totals row -->
+            <tr class="total-row">
+              <td colspan="2">TOTAL</td>
+              <td class="text-end">${{ '{:,.0f}'.format(totals.attendance) }}</td>
+              <td class="text-end">${{ '{:,.0f}'.format(totals.bonus) }}</td>
+              <td class="text-end">${{ '{:,.0f}'.format(totals.extra) }}</td>
+              <td></td>
+              <td class="text-end">${{ '{:,.0f}'.format(totals.total) }}</td>
+              <td class="text-end text-primary">${{ '{:,.0f}'.format(totals.bank) }}</td>
+              <td class="text-end text-success">${{ '{:,.0f}'.format(totals.cash) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if not week.locked %}
+  <div class="d-flex gap-2 flex-wrap">
+    <button type="submit" class="btn btn-success">
+      <i class="bi bi-save me-1"></i>Guardar nómina
+    </button>
+    <button type="submit" name="lock" value="1" class="btn btn-danger"
+            onclick="return confirm('¿Cerrar la nómina de esta semana? Ya no se podrán hacer cambios.')">
+      <i class="bi bi-lock me-1"></i>Cerrar nómina
+    </button>
+    <a href="{{ url_for('attendance_form', pid=project.id, week_date=week_start.strftime('%Y-%m-%d')) }}"
+       class="btn btn-outline-secondary">
+      <i class="bi bi-calendar-check me-1"></i>Editar asistencias
+    </a>
+  </div>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+// Live preview: recalculate total and cash on input change
+const attPays = {
+  {% for w in workers %}
+  {% set pay = pay_map.get(w.id) %}
+  {{ w.id }}: {{ (pay.attendance_pay or 0) + (pay.fixed_pay or 0) if pay else 0 }},
+  {% endfor %}
+};
+
+document.querySelectorAll('.pay-input').forEach(input => {
+  input.addEventListener('input', () => recalcRow(input.dataset.worker));
+});
+
+function recalcRow(wid) {
+  const bonus = parseFloat(document.querySelector(`[name=bonus_${wid}]`)?.value || 0);
+  const extra = parseFloat(document.querySelector(`[name=extra_${wid}]`)?.value || 0);
+  const bank  = parseFloat(document.querySelector(`[name=bank_${wid}]`)?.value || 0);
+  const att   = attPays[wid] || 0;
+  const total = att + bonus + extra;
+  const cash  = total - bank;
+  const totalEl = document.getElementById(`total_${wid}`);
+  const cashEl  = document.getElementById(`cash_${wid}`);
+  if (totalEl) totalEl.textContent = '$' + total.toLocaleString('es-MX', {maximumFractionDigits:0});
+  if (cashEl)  cashEl.textContent  = '$' + cash.toLocaleString('es-MX', {maximumFractionDigits:0});
+  if (cashEl) cashEl.style.color = cash < 0 ? '#dc2626' : '';
+}
+</script>
+{% endblock %}
