@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Trabajadores{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h5 class="mb-0 fw-bold"><i class="bi bi-people me-2"></i>Trabajadores</h5>
+  <div class="d-flex gap-2 align-items-center flex-wrap">
+    <!-- Filter by project -->
+    <form method="get" class="d-flex gap-2 align-items-center">
+      <select name="proyecto" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:140px">
+        <option value="">Todos los proyectos</option>
+        {% for p in projects %}
+        <option value="{{ p.id }}" {{ 'selected' if selected_project == p.id }}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+      <div class="form-check mb-0 ms-1">
+        <input class="form-check-input" type="checkbox" name="inactivos" value="1" id="chkInactivos"
+               {{ 'checked' if show_inactive }} onchange="this.form.submit()">
+        <label class="form-check-label" for="chkInactivos">Ver bajas</label>
+      </div>
+    </form>
+    <a href="{{ url_for('new_worker', proyecto=selected_project or '') }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-person-plus me-1"></i>Alta trabajador
+    </a>
+  </div>
+</div>
+
+{% set current_trade = namespace(val='') %}
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Proyecto</th>
+          <th>Actividad / Puesto</th>
+          <th>Nivel</th>
+          <th>Tipo pago</th>
+          <th>Banco</th>
+          <th>CLABE</th>
+          <th>Estado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in workers %}
+        <tr class="{{ 'text-muted' if not w.active }}">
+          <td>
+            <span class="fw-semibold">{{ w.name }}</span>
+            {% if w.team %}<br><small class="text-muted">{{ w.team }}</small>{% endif %}
+          </td>
+          <td><span class="badge bg-dark">{{ w.project.code }}</span></td>
+          <td>
+            <small class="text-muted">{{ w.trade or '—' }}</small><br>
+            {{ w.position or '—' }}
+          </td>
+          <td><span class="badge bg-light text-dark border">{{ w.level or '—' }}</span></td>
+          <td>
+            <span class="badge badge-{{ w.work_type }}">{{ w.work_type }}</span>
+            {% if w.work_type == 'fijo' and w.fixed_weekly %}
+              <br><small class="text-muted">${{ '{:,.0f}'.format(w.fixed_weekly) }}/sem</small>
+            {% endif %}
+          </td>
+          <td class="text-muted small">{{ w.bank_name or '—' }}</td>
+          <td class="text-muted small">
+            {% if w.clabe %}
+              <span class="font-monospace">{{ w.clabe }}</span>
+            {% else %}—{% endif %}
+          </td>
+          <td>
+            {% if w.active %}
+              <span class="badge bg-success">Activo</span>
+            {% else %}
+              <span class="badge bg-danger">Baja</span>
+              {% if w.termination_date %}
+                <br><small class="text-muted">{{ w.termination_date.strftime('%d/%m/%y') }}</small>
+              {% endif %}
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('edit_worker', wid=w.id) }}" class="btn btn-sm btn-outline-secondary me-1">
+              <i class="bi bi-pencil"></i>
+            </a>
+            {% if w.active %}
+            <form method="post" action="{{ url_for('deactivate_worker', wid=w.id) }}" class="d-inline"
+                  onsubmit="return confirm('¿Dar de baja a {{ w.name }}?')">
+              <button type="submit" class="btn btn-sm btn-outline-danger">
+                <i class="bi bi-person-dash"></i> Baja
+              </button>
+            </form>
+            {% else %}
+            <form method="post" action="{{ url_for('reactivate_worker', wid=w.id) }}" class="d-inline">
+              <button type="submit" class="btn btn-sm btn-outline-success">
+                <i class="bi bi-person-check"></i> Reactivar
+              </button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" class="text-center text-muted py-5">
+            <i class="bi bi-people" style="font-size:2rem"></i>
+            <p class="mt-2">No hay trabajadores registrados.</p>
+            <a href="{{ url_for('new_worker') }}" class="btn btn-primary btn-sm">
+              <i class="bi bi-person-plus me-1"></i>Dar de alta
+            </a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
