@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Editar Proyecto{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-2">
+  <a href="{{ url_for('projects') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+  <h5 class="mb-0 fw-bold">Editar Proyecto: {{ project.name }}</h5>
+</div>
+<div class="card" style="max-width:500px">
+  <div class="card-body">
+    <form method="post">
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Código</label>
+        <input type="text" name="code" class="form-control" value="{{ project.code }}" required maxlength="20">
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Nombre</label>
+        <input type="text" name="name" class="form-control" value="{{ project.name }}" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Descripción</label>
+        <textarea name="description" class="form-control" rows="2">{{ project.description or '' }}</textarea>
+      </div>
+      <button type="submit" class="btn btn-primary">Guardar cambios</button>
+    </form>
+  </div>
+</div>
+{% endblock %}
