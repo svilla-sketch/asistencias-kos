@@ -3,7 +3,7 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
   <h5 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2"></i>Nómina</h5>
-  <form method="get" class="d-flex gap-2">
+  <form method="get" class="d-flex gap-2 align-items-center flex-wrap">
     <select name="proyecto" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:140px">
       <option value="">Todos los proyectos</option>
       {% for p in projects %}
@@ -11,6 +11,20 @@
       {% endfor %}
     </select>
   </form>
+</div>
+
+<!-- Date → Week calculator -->
+<div class="card mb-3 border-0" style="background:#f0f4ff">
+  <div class="card-body py-2 px-3">
+    <div class="d-flex align-items-center gap-3 flex-wrap">
+      <span class="fw-semibold text-muted" style="font-size:.85rem"><i class="bi bi-calendar3 me-1"></i>Buscar semana por fecha:</span>
+      <input type="date" id="fechaBuscador" class="form-control form-control-sm" style="width:160px">
+      <span id="semanaInfo" class="text-primary fw-semibold" style="font-size:.88rem"></span>
+      <a id="btnVerSemana" class="btn btn-sm btn-primary d-none" href="#">
+        <i class="bi bi-arrow-right-circle me-1"></i>Ir a esa semana
+      </a>
+    </div>
+  </div>
 </div>
 
 <div class="card">
@@ -65,4 +79,39 @@
     </table>
   </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function getSemanaStart(date) {
+  var d = new Date(date);
+  d.setUTCHours(0,0,0,0);
+  var day = d.getUTCDay();
+  var diff = (day === 6) ? 0 : -(day + 1);
+  d.setUTCDate(d.getUTCDate() + diff);
+  return d;
+}
+function formatDate(d) {
+  var m = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+  return d.getUTCDate() + ' ' + m[d.getUTCMonth()] + ' ' + d.getUTCFullYear();
+}
+function toYMD(d) {
+  return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');
+}
+document.getElementById('fechaBuscador').addEventListener('change', function() {
+  if (!this.value) return;
+  var sat = getSemanaStart(this.value + 'T00:00:00Z');
+  var fri = new Date(sat); fri.setUTCDate(sat.getUTCDate() + 6);
+  document.getElementById('semanaInfo').textContent = 'Semana: ' + formatDate(sat) + ' – ' + formatDate(fri);
+  var proyecto = document.querySelector('select[name="proyecto"]').value;
+  var btn = document.getElementById('btnVerSemana');
+  if (proyecto) {
+    btn.href = '/nomina/' + proyecto + '/' + toYMD(sat);
+    btn.classList.remove('d-none');
+  } else {
+    btn.classList.add('d-none');
+    document.getElementById('semanaInfo').textContent += ' — Selecciona un proyecto para ir al detalle';
+  }
+});
+</script>
 {% endblock %}
