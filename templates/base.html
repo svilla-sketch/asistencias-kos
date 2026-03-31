@@ -108,6 +108,15 @@
             <i class="bi bi-table"></i> Tabulador
           </a>
         </li>
+        <li class="nav-item mt-2">
+          <small class="text-muted px-3 fw-bold" style="font-size:.7rem">ADMIN</small>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if 'admin_pagos' in request.endpoint %}active{% endif %}"
+             href="{{ url_for('admin_pagos') }}">
+            <i class="bi bi-cash-coin me-1"></i>Admin Pagos
+          </a>
+        </li>
       </ul>
     </div>
 
