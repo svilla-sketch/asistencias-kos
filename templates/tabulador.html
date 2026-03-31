@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+{% block title %}Tabulador de Sueldos{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h5 class="mb-0 fw-bold"><i class="bi bi-table me-2"></i>Tabulador de Sueldos</h5>
+  <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#newScaleModal">
+    <i class="bi bi-plus me-1"></i>Agregar tarifa
+  </button>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Actividad</th>
+          <th>Puesto</th>
+          <th>Nivel</th>
+          <th class="text-end">Sueldo semanal</th>
+          <th class="text-end">Pago diario (÷6)</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% set current_trade = namespace(val='') %}
+        {% for s in scales %}
+          {% if s.trade != current_trade.val %}
+            {% set current_trade.val = s.trade %}
+            <tr>
+              <td colspan="6" class="py-1 px-3 fw-bold text-muted"
+                  style="background:#f8f9fa;font-size:.78rem;text-transform:uppercase;letter-spacing:.5px">
+                {{ s.trade }}
+              </td>
+            </tr>
+          {% endif %}
+          <tr>
+            <td class="text-muted">{{ s.trade }}</td>
+            <td>{{ s.position }}</td>
+            <td><span class="badge bg-light text-dark border">{{ s.level }}</span></td>
+            <td class="text-end fw-bold">${{ '{:,.0f}'.format(s.weekly_rate) }}</td>
+            <td class="text-end text-muted">${{ '{:,.0f}'.format(s.weekly_rate / 6) }}</td>
+            <td class="text-end">
+              <button type="button" class="btn btn-sm btn-outline-secondary me-1"
+                      data-bs-toggle="modal" data-bs-target="#editModal"
+                      data-id="{{ s.id }}" data-trade="{{ s.trade }}"
+                      data-position="{{ s.position }}" data-level="{{ s.level }}"
+                      data-rate="{{ s.weekly_rate }}">
+                <i class="bi bi-pencil"></i>
+              </button>
+              <form method="post" class="d-inline"
+                    onsubmit="return confirm('¿Eliminar esta tarifa?')">
+                <input type="hidden" name="action" value="delete">
+                <input type="hidden" name="id" value="{{ s.id }}">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-4">No hay tarifas registradas.</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal nuevo -->
+<div class="modal fade" id="newScaleModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="action" value="save">
+        <div class="modal-header">
+          <h5 class="modal-title">Nueva tarifa</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Actividad</label>
+            <select name="trade" id="newTrade" class="form-select" required onchange="loadPositions(this,'newPosition')">
+              <option value="">Seleccionar...</option>
+              {% for t in trades %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Puesto</label>
+            <select name="position" id="newPosition" class="form-select" required>
+              <option value="">Seleccionar actividad primero</option>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nivel</label>
+            <select name="level" class="form-select" required>
+              {% for l in levels %}<option value="{{ l }}">{{ l }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Sueldo semanal ($)</label>
+            <input type="number" name="weekly_rate" class="form-control" step="1" min="0" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar -->
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <form method="post">
+        <input type="hidden" name="action" value="save">
+        <input type="hidden" name="id" id="editId">
+        <div class="modal-header">
+          <h5 class="modal-title">Editar tarifa</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Actividad</label>
+            <input type="text" name="trade" id="editTrade" class="form-control" readonly>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Puesto</label>
+            <input type="text" name="position" id="editPosition" class="form-control" readonly>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nivel</label>
+            <input type="text" name="level" id="editLevel" class="form-control" readonly>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Sueldo semanal ($)</label>
+            <input type="number" name="weekly_rate" id="editRate" class="form-control" step="1" min="0" required>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="submit" class="btn btn-primary">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+const positionsData = {{ positions | tojson }};
+
+function loadPositions(tradeSelect, targetId) {
+  const trade = tradeSelect.value;
+  const sel = document.getElementById(targetId);
+  sel.innerHTML = '<option value="">Seleccionar...</option>';
+  (positionsData[trade] || []).forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = p; opt.textContent = p;
+    sel.appendChild(opt);
+  });
+}
+
+document.getElementById('editModal').addEventListener('show.bs.modal', function(e) {
+  const btn = e.relatedTarget;
+  document.getElementById('editId').value = btn.dataset.id;
+  document.getElementById('editTrade').value = btn.dataset.trade;
+  document.getElementById('editPosition').value = btn.dataset.position;
+  document.getElementById('editLevel').value = btn.dataset.level;
+  document.getElementById('editRate').value = btn.dataset.rate;
+});
+</script>
+{% endblock %}
