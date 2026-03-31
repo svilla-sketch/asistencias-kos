@@ -186,7 +186,7 @@ def recalc_payroll(payroll):
         payroll.fixed_pay = 0
     elif worker.work_type == 'fijo':
         payroll.attendance_pay = 0
-        payroll.fixed_pay = worker.fixed_weekly or 0
+        payroll.fixed_pay = (worker.fixed_weekly or 0) if (payroll.attendance_days or 0) > 0 else 0
     else:  # destajo
         payroll.attendance_pay = 0
         payroll.fixed_pay = 0
