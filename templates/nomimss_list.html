@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}NomIMSS – Santander{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <div>
+    <h5 class="mb-0 fw-bold"><i class="bi bi-bank me-2"></i>Nómina IMSS / Santander</h5>
+    <small class="text-muted">Trabajadores con pago fijo semanal vía transferencia bancaria</small>
+  </div>
+  <form method="get" class="d-flex gap-2">
+    <select name="proyecto" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:140px">
+      <option value="">Todos los proyectos</option>
+      {% for p in projects %}
+      <option value="{{ p.id }}" {{ 'selected' if selected_project == p.id }}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Proyecto</th>
+          <th>Semana</th>
+          <th>Período</th>
+          <th class="text-end">Trabajadores</th>
+          <th class="text-end">Total banco</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in weeks %}
+        {% set t = week_totals.get(w.id, {}) %}
+        <tr>
+          <td><span class="badge bg-dark">{{ w.project.code }}</span></td>
+          <td class="fw-semibold">Sem. {{ w.week_num }}, {{ w.year }}</td>
+          <td>{{ w.week_start.strftime('%d %b') }} – {{ w.week_end.strftime('%d %b %Y') }}</td>
+          <td class="text-end">{{ t.get('count', 0) }} trabajadores</td>
+          <td class="text-end fw-bold text-primary">${{ '{:,.2f}'.format(t.get('bank', 0)) }}</td>
+          <td class="text-end">
+            <a href="{{ url_for('nomimss_detail', pid=w.project_id, week_date=w.week_start.strftime('%Y-%m-%d')) }}"
+               class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-bank me-1"></i>Ver NomIMSS
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="6" class="text-center text-muted py-5">
+            <i class="bi bi-bank" style="font-size:2rem"></i>
+            <p class="mt-2">No hay semanas registradas.</p>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
