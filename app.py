@@ -110,6 +110,10 @@ class AttendanceWeek(db.Model):
     payrolls = db.relationship('Payroll', backref='week', lazy=True)
     __table_args__ = (db.UniqueConstraint('project_id', 'week_start'),)
 
+    @property
+    def label(self):
+        return f"[{self.project.code}] Sem.{self.week_num} {self.week_start.strftime('%d %b')}–{self.week_end.strftime('%d %b %Y')}"
+
 
 class Attendance(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -726,9 +730,10 @@ def api_rate(wid):
 # ─── SEED DATA ─────────────────────────────────────────────────────────────────
 
 def seed_tabulador():
-    """Pre-load tabulador T1-26 rates from the Excel."""
+    """Pre-load tabulador rates from the Excel."""
     rates = [
         # trade, position, level, weekly_rate
+        # ── T1-26 / T2-26 / T3-26 (Punto Calma 2026) ──────────────────────────
         ('Obra Civil', 'Cabo O.C.',       'T1-26', 4300),
         ('Obra Civil', 'Cabo O.C.',       'T2-26', 4100),
         ('Obra Civil', 'Cabo O.C.',       'T3-26', 3700),
@@ -743,6 +748,7 @@ def seed_tabulador():
         ('Fierro',     'Oficial F',       'T2-26', 2700),
         ('Fierro',     'Oficial F',       'T3-26', 2500),
         ('Fierro',     'Ayudante F',      'T1-26', 2210),
+        ('Maquinista', 'Cabo M',          'T3-26', 3600),
         ('Pintura',    'Cabo P',          'T1-26', 3900),
         ('Pintura',    'Cabo P',          'T2-26', 3700),
         ('Pintura',    'Cabo P',          'T3-26', 3500),
@@ -750,12 +756,42 @@ def seed_tabulador():
         ('Pintura',    'Oficial P',       'T2-26', 2900),
         ('Pintura',    'Oficial P',       'T3-26', 2500),
         ('Pintura',    'Ayudante P',      'T1-26', 2210),
-        ('Electricidad', 'Oficial E',     'T1-24', 2900),
-        ('Electricidad', 'Ayudante E',    'T1-24', 2000),
-        ('Almacen',    'Almacen',         'T1-26', 3500),
-        ('Almacen',    'Almacen',         'T2-26', 2855),
-        ('Almacen',    'Almacen',         'T3-26', 2210),
+        ('Pintura',    'Ayudante P',      'T2-26', 2000),
+        ('Suministro', 'Chofer',          'T1-26', 3000),
+        ('Suministro', 'Chofer',          'T2-26', 2750),
+        ('Suministro', 'Chofer',          'T3-26', 2500),
         ('Suministro', 'Ayudante S',      'T1-26', 1600),
+        ('Suministro', 'Ayudante S',      'T2-26', 1400),
+        ('Almacen',    'Almacen',         'T1-26', 3500),
+        ('Almacen',    'Almacen',         'T2-26', 2500),
+        ('Almacen',    'Almacen',         'T3-26', 2210),
+        ('Dirección',  'Director',        'T1-26', 3500),
+        ('Dirección',  'Residente',       'T1-26', 2500),
+        ('Externo',    'Externo',         'T1-26', 0),
+        # ── T1-24 / T2-24 / T3-24 (Santián 2024) ──────────────────────────────
+        ('Obra Civil', 'Cabo O.C.',       'T1-24', 3900),
+        ('Obra Civil', 'Cabo O.C.',       'T2-24', 3700),
+        ('Obra Civil', 'Cabo O.C.',       'T3-24', 3300),
+        ('Obra Civil', 'Oficial O.C.',    'T1-24', 3200),
+        ('Obra Civil', 'Oficial O.C.',    'T2-24', 2900),
+        ('Obra Civil', 'Oficial O.C.',    'T3-24', 2500),
+        ('Obra Civil', 'Ayudante O.C.',   'T1-24', 2100),
+        ('Obra Civil', 'Ayudante O.C.',   'T2-24', 2000),
+        ('Obra Civil', 'Chofer',          'T1-24', 2750),
+        ('Dirección',  'Director',        'T1-24', 5000),
+        ('Dirección',  'Residente',       'T1-24', 2500),
+        ('Electricidad', 'Cabo E',        'T1-24', 3700),
+        ('Electricidad', 'Oficial E',     'T1-24', 2900),
+        ('Electricidad', 'Oficial E',     'T2-24', 2500),
+        ('Electricidad', 'Ayudante E',    'T1-24', 2000),
+        ('Fierro',     'Oficial F',       'T1-24', 2900),
+        ('Fierro',     'Oficial F',       'T2-24', 2500),
+        ('Fierro',     'Ayudante F',      'T1-24', 2000),
+        ('Pintura',    'Oficial P',       'T1-24', 2900),
+        ('Pintura',    'Oficial P',       'T2-24', 2500),
+        ('Pintura',    'Oficial P',       'T3-24', 2200),
+        ('Pintura',    'Ayudante P',      'T1-24', 2000),
+        ('Suministro', 'Ayudante S',      'T1-24', 1400),
         ('Maquinista', 'Cabo M',          'T3-24', 3300),
     ]
     for trade, position, level, rate in rates:
@@ -782,6 +818,66 @@ with app.app_context():
     if Project.query.count() == 0:
         db.session.add(Project(name='KOS', code='KOS', description='Proyecto KOS'))
         db.session.commit()
+
+# ─── ADMIN PAY MODULE ──────────────────────────────────────────────────────
+
+@app.route('/admin/pagos')
+def admin_pagos():
+    weeks = AttendanceWeek.query.order_by(AttendanceWeek.week_start.desc()).all()
+    projects = Project.query.order_by(Project.name).all()
+    selected_week_id = request.args.get('week_id', type=int)
+    selected_project_id = request.args.get('project_id', type=int)
+    if not selected_week_id and weeks:
+        selected_week_id = weeks[0].id
+    selected_week = AttendanceWeek.query.get(selected_week_id) if selected_week_id else None
+    workers_query = Worker.query.filter_by(active=True)
+    if selected_project_id:
+        workers_query = workers_query.filter_by(project_id=selected_project_id)
+    fijo_workers = workers_query.filter(Worker.work_type.in_(['fijo', 'destajo'])).order_by(Worker.name).all()
+    payrolls = {}
+    if selected_week:
+        for p in Payroll.query.filter_by(week_id=selected_week.id).all():
+            payrolls[p.worker_id] = p
+    return render_template('admin_pagos.html',
+        weeks=weeks, projects=projects,
+        selected_week=selected_week,
+        selected_project_id=selected_project_id,
+        fijo_workers=fijo_workers,
+        payrolls=payrolls)
+
+@app.route('/admin/pagos/save', methods=['POST'])
+def admin_pagos_save():
+    week_id = request.form.get('week_id', type=int)
+    project_id = request.form.get('project_id', type=int)
+    if not week_id:
+        flash('Selecciona una semana', 'danger')
+        return redirect(url_for('admin_pagos'))
+    for key, value in request.form.items():
+        if key.startswith('pay_'):
+            worker_id = int(key.split('_')[1])
+            amount = float(value) if value else 0.0
+            pay_type = request.form.get(f'type_{worker_id}', 'semanal')
+            payroll = Payroll.query.filter_by(week_id=week_id, worker_id=worker_id).first()
+            if not payroll:
+                w = Worker.query.get(worker_id)
+                payroll = Payroll(week_id=week_id, worker_id=worker_id)
+                db.session.add(payroll)
+            else:
+                w = payroll.worker
+            if pay_type == 'quincenal':
+                payroll.extra_pay = amount
+            else:
+                payroll.fixed_pay = amount if hasattr(payroll, 'fixed_pay') else None
+                payroll.extra_pay = amount
+            payroll.total_pay = (payroll.attendance_pay or 0) + (payroll.extra_pay or 0) + (payroll.bonus_pay or 0)
+            enrolled = w.imss_enrolled if w else False
+            amt = w.imss_weekly_amount if w else 0
+            payroll.bank_pay = (amt or 2330.59) if enrolled else 0
+            payroll.cash_pay = max(0, (payroll.total_pay or 0) - (payroll.bank_pay or 0))
+    db.session.commit()
+    flash('Pagos guardados correctamente', 'success')
+    return redirect(url_for('admin_pagos', week_id=week_id, project_id=project_id or ''))
+
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5050))
