@@ -879,6 +879,17 @@ def admin_pagos_save():
     return redirect(url_for('admin_pagos', week_id=week_id, project_id=project_id or ''))
 
 
+@app.route('/admin/pagos/delete/<int:payroll_id>', methods=['POST'])
+def admin_pagos_delete(payroll_id):
+    week_id = request.form.get('week_id', type=int)
+    project_id = request.form.get('project_id', type=int)
+    payroll = Payroll.query.get_or_404(payroll_id)
+    db.session.delete(payroll)
+    db.session.commit()
+    flash('Pago eliminado.', 'warning')
+    return redirect(url_for('admin_pagos', week_id=week_id, project_id=project_id or ''))
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5050))
     app.run(debug=False, host='0.0.0.0', port=port)
