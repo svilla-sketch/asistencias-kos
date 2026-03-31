@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Asistencias – {{ project.name }} Sem.{{ week.week_num }}{% endblock %}
+{% block head %}
+<style>
+  .att-table th, .att-table td { vertical-align: middle; }
+  .day-col { width: 70px; text-align: center; }
+  .total-col { width: 60px; text-align: center; font-weight: 700; }
+  .worker-name { min-width: 180px; }
+  .trade-header td { background: #f0f4ff; font-weight: 700; font-size: .78rem;
+                     text-transform: uppercase; letter-spacing: .5px; color: #3730a3; }
+  .days-badge { display: inline-block; width: 28px; height: 28px; line-height: 28px;
+                text-align: center; border-radius: 50%; font-weight: 700; font-size: .85rem; }
+  .days-6 { background: #d1fae5; color: #065f46; }
+  .days-5 { background: #fef3c7; color: #92400e; }
+  .days-low { background: #fee2e2; color: #991b1b; }
+  .days-0 { background: #f3f4f6; color: #9ca3af; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+  <a href="{{ url_for('attendance_list') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+  <div>
+    <h5 class="mb-0 fw-bold">
+      <i class="bi bi-calendar-check me-2"></i>{{ project.name }} —
+      Sem. {{ week.week_num }}: {{ week_start.strftime('%d %b') }} al {{ week_end.strftime('%d %b %Y') }}
+    </h5>
+    <small class="text-muted">Marcar los días que el trabajador asistió</small>
+  </div>
+  {% if week.locked %}
+  <span class="badge locked-badge ms-2"><i class="bi bi-lock me-1"></i>Semana cerrada</span>
+  {% endif %}
+</div>
+
+<!-- Week selector -->
+<div class="card mb-3">
+  <div class="card-body py-2 px-3 d-flex align-items-center gap-3 flex-wrap">
+    <span class="fw-semibold text-muted" style="font-size:.85rem">Ir a semana:</span>
+
+    <a href="{{ url_for('attendance_form', pid=project.id, week_date=prev_week.strftime('%Y-%m-%d')) }}"
+       class="btn btn-sm btn-outline-secondary">
+      <i class="bi bi-chevron-left"></i> {{ prev_week.strftime('%d %b') }}
+    </a>
+    <a href="{{ url_for('attendance_form', pid=project.id, week_date=next_week.strftime('%Y-%m-%d')) }}"
+       class="btn btn-sm btn-outline-secondary">
+      {{ next_week.strftime('%d %b') }} <i class="bi bi-chevron-right"></i>
+    </a>
+
+    <span class="ms-auto text-muted small">{{ workers | length }} trabajadores activos</span>
+  </div>
+</div>
+
+{% if not workers %}
+<div class="card">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="bi bi-people" style="font-size:2.5rem"></i>
+    <p class="mt-2">No hay trabajadores activos en este proyecto.</p>
+    <a href="{{ url_for('new_worker', proyecto=project.id) }}" class="btn btn-primary btn-sm">Dar de alta trabajadores</a>
+  </div>
+</div>
+{% else %}
+<form method="post" id="attForm">
+  <div class="card mb-3">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table att-table mb-0">
+          <thead>
+            <tr>
+              <th class="worker-name">Trabajador</th>
+              {% for d, label in day_labels %}
+              <th class="day-col">{{ label }}<br><small class="text-muted fw-normal">{{ d.strftime('%d') }}</small></th>
+              {% endfor %}
+              <th class="total-col">Días</th>
+              <th>Notas</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set current_trade = namespace(val='') %}
+            {% for w in workers %}
+              {% if w.trade != current_trade.val %}
+                {% set current_trade.val = w.trade %}
+                <tr class="trade-header">
+                  <td colspan="9" class="py-1 px-3">
+                    <i class="bi bi-tools me-1"></i>{{ w.trade or 'Sin actividad' }}
+                  </td>
+                </tr>
+              {% endif %}
+              {% set att = att_map.get(w.id) %}
+              <tr data-worker="{{ w.id }}">
+                <td class="worker-name">
+                  <div class="fw-semibold">{{ w.name }}
+                    {% if not w.active %}
+                    <span class="badge bg-danger ms-1" title="Dado de baja {{ w.termination_date.strftime('%d/%m/%y') if w.termination_date else '' }}">BAJA</span>
+                    {% endif %}
+                  </div>
+                  <small class="text-muted">{{ w.position or '' }}
+                    {% if w.work_type != 'asistencia' %}
+                    <span class="badge badge-{{ w.work_type }} ms-1">{{ w.work_type }}</span>
+                    {% endif %}
+                  </small>
+                </td>
+                {% for day in ['sat','mon','tue','wed','thu','fri'] %}
+                <td class="check-cell">
+                  <input type="checkbox" name="{{ day }}_{{ w.id }}" class="att-check day-cb"
+                    data-worker="{{ w.id }}"
+                    {{ 'checked' if att and att[day] }}
+                    {{ 'disabled' if week.locked }}>
+                </td>
+                {% endfor %}
+                <td class="total-col">
+                  <span class="days-badge days-{{ att.days_total | int if att else 0 }}"
+                        id="total_{{ w.id }}">
+                    {{ att.days_total | int if att else 0 }}
+                  </span>
+                </td>
+                <td>
+                  <input type="text" name="notes_{{ w.id }}" class="form-control form-control-sm"
+                    value="{{ att.notes if att else '' }}"
+                    placeholder="Notas…" {{ 'disabled' if week.locked }}>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Acciones rápidas -->
+  <div class="card mb-3">
+    <div class="card-body py-2 px-3 d-flex gap-2 align-items-center flex-wrap">
+      <button type="button" class="btn btn-sm btn-outline-success" onclick="markAll(true)" {{ 'disabled' if week.locked }}>
+        <i class="bi bi-check-all me-1"></i>Marcar todos (6 días)
+      </button>
+      <button type="button" class="btn btn-sm btn-outline-secondary" onclick="markAll(false)" {{ 'disabled' if week.locked }}>
+        <i class="bi bi-x-circle me-1"></i>Limpiar todo
+      </button>
+    </div>
+  </div>
+
+  {% if not week.locked %}
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-success">
+      <i class="bi bi-save me-1"></i>Guardar asistencias
+    </button>
+    <button type="submit" name="goto_payroll" value="1" class="btn btn-primary">
+      <i class="bi bi-cash-stack me-1"></i>Guardar e ir a nómina
+    </button>
+    <a href="{{ url_for('attendance_list') }}" class="btn btn-outline-secondary">Cancelar</a>
+  </div>
+  {% else %}
+  <a href="{{ url_for('payroll_detail', pid=project.id, week_date=week_start.strftime('%Y-%m-%d')) }}"
+     class="btn btn-primary">
+    <i class="bi bi-cash-stack me-1"></i>Ver nómina de esta semana
+  </a>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+// Live day counter
+document.querySelectorAll('.day-cb').forEach(cb => {
+  cb.addEventListener('change', () => updateTotal(cb.dataset.worker));
+});
+
+function updateTotal(workerId) {
+  const checks = document.querySelectorAll(`.day-cb[data-worker="${workerId}"]`);
+  const total = [...checks].filter(c => c.checked).length;
+  const badge = document.getElementById(`total_${workerId}`);
+  badge.textContent = total;
+  badge.className = 'days-badge ' + (total === 6 ? 'days-6' : total === 5 ? 'days-5' : total > 0 ? 'days-low' : 'days-0');
+}
+
+function markAll(checked) {
+  document.querySelectorAll('.day-cb:not(:disabled)').forEach(cb => { cb.checked = checked; });
+  document.querySelectorAll('.day-cb[data-worker]').forEach(cb => {
+    updateTotal(cb.dataset.worker);
+  });
+}
+</script>
+{% endblock %}
