@@ -816,7 +816,13 @@ with app.app_context():
     if PayScale.query.count() == 0:
         seed_tabulador()
     if Project.query.count() == 0:
-        db.session.add(Project(name='KOS', code='KOS', description='Proyecto KOS'))
+        for p in [
+            Project(name='KOS',            code='KOS',   description='Proyecto KOS'),
+            Project(name='Administrativo', code='ADMIN', description='Proyecto Administrativo'),
+            Project(name='Santián',        code='STN',   description='Proyecto Santián'),
+            Project(name='Punto Calma',    code='PTC',   description='Proyecto Punto Calma'),
+        ]:
+            db.session.add(p)
         db.session.commit()
 
 # ─── ADMIN PAY MODULE ──────────────────────────────────────────────────────
