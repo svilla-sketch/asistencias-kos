@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+{% block title %}NomIMSS – {{ project.name }} Sem.{{ week.week_num }}{% endblock %}
+{% block head %}
+<style>
+  .imss-table th, .imss-table td { vertical-align: middle; font-size: .85rem; }
+  .trade-header td { background: #f0f4ff; font-weight: 700; font-size: .76rem;
+                     text-transform: uppercase; letter-spacing: .5px; color: #3730a3; }
+  .match-ok   { color: #059669; font-weight: 700; }
+  .match-diff { color: #dc2626; font-weight: 700; }
+  .total-row td { background: #f8f9fa; font-weight: 700; border-top: 2px solid #dee2e6; }
+</style>
+{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-2 flex-wrap">
+  <a href="{{ url_for('nomimss_list') }}" class="btn btn-sm btn-outline-secondary">
+    <i class="bi bi-arrow-left"></i>
+  </a>
+  <div>
+    <h5 class="mb-0 fw-bold">
+      <i class="bi bi-bank me-2"></i>NomIMSS — {{ project.name }}
+      &nbsp;Sem. {{ week.week_num }}: {{ week.week_start.strftime('%d %b') }} al {{ week.week_end.strftime('%d %b %Y') }}
+    </h5>
+    <small class="text-muted">Pagos fijos vía Santander — deben coincidir con columna Banco en nómina</small>
+  </div>
+  {% if week.locked %}
+  <span class="badge locked-badge ms-2"><i class="bi bi-lock me-1"></i>Semana cerrada</span>
+  {% endif %}
+</div>
+
+<!-- Resumen -->
+<div class="row g-2 mb-3">
+  <div class="col-6 col-md-3">
+    <div class="card text-center py-2">
+      <div class="fw-bold text-primary" style="font-size:1.4rem">${{ '{:,.2f}'.format(total_imss) }}</div>
+      <div class="text-muted" style="font-size:.75rem">Total a transferir</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center py-2">
+      <div class="fw-bold" style="font-size:1.4rem">{{ workers | length }}</div>
+      <div class="text-muted" style="font-size:.75rem">Trabajadores IMSS</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center py-2">
+      <div class="fw-bold text-success" style="font-size:1.4rem">
+        {{ workers | length - discrepancias | length }}
+      </div>
+      <div class="text-muted" style="font-size:.75rem">Montos confirmados</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-3">
+    <div class="card text-center py-2 {{ 'border-danger' if discrepancias }}">
+      <div class="fw-bold {{ 'text-danger' if discrepancias else 'text-success' }}" style="font-size:1.4rem">
+        {{ discrepancias | length }}
+      </div>
+      <div class="text-muted" style="font-size:.75rem">Discrepancias</div>
+    </div>
+  </div>
+</div>
+
+{% if discrepancias %}
+<div class="alert alert-warning py-2 d-flex gap-2 align-items-center">
+  <i class="bi bi-exclamation-triangle-fill"></i>
+  <span>
+    <strong>{{ discrepancias | length }} trabajador(es)</strong> tienen un monto diferente al registrado en nómina.
+    Revisa la columna Banco.
+  </span>
+</div>
+{% endif %}
+
+{% if not workers %}
+<div class="card">
+  <div class="card-body text-center py-5 text-muted">
+    <i class="bi bi-bank" style="font-size:2.5rem"></i>
+    <p class="mt-2">No hay trabajadores inscritos en NomIMSS para este proyecto.</p>
+    <a href="{{ url_for('workers', proyecto=project.id) }}" class="btn btn-primary btn-sm">
+      <i class="bi bi-person-plus me-1"></i>Dar de alta trabajadores
+    </a>
+  </div>
+</div>
+{% else %}
+<form method="post">
+  <div class="card mb-3">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table imss-table mb-0">
+          <thead>
+            <tr>
+              <th style="min-width:200px">Trabajador</th>
+              <th>Actividad / Puesto</th>
+              <th>Nivel</th>
+              <th>Equipo</th>
+              <th class="text-end" style="width:110px">Días trabajados</th>
+              <th class="text-end" style="width:130px">Total nómina</th>
+              <th class="text-end" style="width:130px">
+                Monto Santander
+                <br><small class="fw-normal text-muted">(col Q banco)</small>
+              </th>
+              <th class="text-center" style="width:90px">Estado</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% set cur_trade = namespace(val='') %}
+            {% for w in workers %}
+              {% if w.trade != cur_trade.val %}
+                {% set cur_trade.val = w.trade %}
+                <tr class="trade-header">
+                  <td colspan="8" class="py-1 px-3">
+                    <i class="bi bi-tools me-1"></i>{{ w.trade or 'Sin actividad' }}
+                  </td>
+                </tr>
+              {% endif %}
+              {% set pay = pay_map.get(w.id) %}
+              {% set bank_val = pay.bank_pay if pay else w.imss_weekly_amount %}
+              {% set total_val = pay.total_pay if pay else 0 %}
+              {% set dias = pay.attendance_days if pay else 0 %}
+              {% set is_diff = pay and (pay.bank_pay - w.imss_weekly_amount) | abs > 0.01 %}
+              <tr>
+                <td>
+                  <span class="fw-semibold">{{ w.name }}</span>
+                  {% if not w.active %}
+                  <span class="badge bg-danger ms-1">BAJA</span>
+                  {% endif %}
+                </td>
+                <td>
+                  <small class="text-muted">{{ w.trade }}</small><br>
+                  {{ w.position }}
+                </td>
+                <td><span class="badge bg-light text-dark border">{{ w.level or '—' }}</span></td>
+                <td class="text-muted">{{ w.team or '—' }}</td>
+                <td class="text-end">
+                  <span class="att-badge {% if dias == 6 %}att-6{% elif dias == 5 %}att-5{% elif dias > 0 %}att-low{% else %}att-0{% endif %}">
+                    {{ dias | int }}
+                  </span>
+                </td>
+                <td class="text-end text-muted">${{ '{:,.2f}'.format(total_val) }}</td>
+                <td class="text-end">
+                  {% if not week.locked %}
+                  <input type="number" name="bank_{{ w.id }}"
+                    class="form-control form-control-sm text-end {{ 'border-danger' if is_diff }}"
+                    value="{{ '{:.2f}'.format(bank_val) }}" step="0.01" min="0">
+                  {% else %}
+                  <span class="{{ 'match-diff' if is_diff else 'match-ok' }}">
+                    ${{ '{:,.2f}'.format(bank_val) }}
+                  </span>
+                  {% endif %}
+                </td>
+                <td class="text-center">
+                  {% if is_diff %}
+                    <span class="badge bg-danger"><i class="bi bi-exclamation-circle me-1"></i>Dif.</span>
+                  {% else %}
+                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>OK</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            <tr class="total-row">
+              <td colspan="6" class="text-end pe-3">TOTAL A TRANSFERIR SANTANDER</td>
+              <td class="text-end text-primary">${{ '{:,.2f}'.format(total_imss) }}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% if not week.locked %}
+  <div class="d-flex gap-2 flex-wrap align-items-center">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-save me-1"></i>Guardar montos
+    </button>
+    <a href="{{ url_for('payroll_detail', pid=project.id, week_date=week_start.strftime('%Y-%m-%d')) }}"
+       class="btn btn-outline-success">
+      <i class="bi bi-cash-stack me-1"></i>Ver nómina completa
+    </a>
+    <span class="text-muted small ms-2">
+      <i class="bi bi-info-circle me-1"></i>
+      Los montos aquí modificados actualizan la columna Banco en la nómina.
+    </span>
+  </div>
+  {% else %}
+  <a href="{{ url_for('payroll_detail', pid=project.id, week_date=week_start.strftime('%Y-%m-%d')) }}"
+     class="btn btn-outline-success">
+    <i class="bi bi-cash-stack me-1"></i>Ver nómina completa
+  </a>
+  {% endif %}
+</form>
+{% endif %}
+{% endblock %}
