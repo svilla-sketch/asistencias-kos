@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Nómina{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+  <h5 class="mb-0 fw-bold"><i class="bi bi-cash-stack me-2"></i>Nómina</h5>
+  <form method="get" class="d-flex gap-2">
+    <select name="proyecto" class="form-select form-select-sm" onchange="this.form.submit()" style="min-width:140px">
+      <option value="">Todos los proyectos</option>
+      {% for p in projects %}
+      <option value="{{ p.id }}" {{ 'selected' if selected_project == p.id }}>{{ p.name }}</option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+<div class="card">
+  <div class="card-body p-0">
+    <table class="table table-hover mb-0">
+      <thead>
+        <tr>
+          <th>Proyecto</th>
+          <th>Semana</th>
+          <th>Período</th>
+          <th class="text-end">Total nómina</th>
+          <th class="text-end">Banco</th>
+          <th class="text-end">Efectivo</th>
+          <th>Estado</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for w in weeks %}
+        {% set t = week_totals.get(w.id, {}) %}
+        <tr>
+          <td><span class="badge bg-dark">{{ w.project.code }}</span></td>
+          <td class="fw-semibold">Sem. {{ w.week_num }}, {{ w.year }}</td>
+          <td>{{ w.week_start.strftime('%d %b') }} – {{ w.week_end.strftime('%d %b %Y') }}</td>
+          <td class="text-end fw-bold">${{ '{:,.0f}'.format(t.get('total', 0)) }}</td>
+          <td class="text-end text-primary">${{ '{:,.0f}'.format(t.get('bank', 0)) }}</td>
+          <td class="text-end text-success">${{ '{:,.0f}'.format(t.get('cash', 0)) }}</td>
+          <td>
+            {% if w.locked %}
+              <span class="badge locked-badge"><i class="bi bi-lock me-1"></i>Cerrada</span>
+            {% else %}
+              <span class="badge bg-warning text-dark">En proceso</span>
+            {% endif %}
+          </td>
+          <td class="text-end">
+            <a href="{{ url_for('payroll_detail', pid=w.project_id, week_date=w.week_start.strftime('%Y-%m-%d')) }}"
+               class="btn btn-sm btn-outline-primary">
+              <i class="bi bi-eye me-1"></i>Ver detalle
+            </a>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" class="text-center text-muted py-5">
+            <i class="bi bi-cash-stack" style="font-size:2rem"></i>
+            <p class="mt-2">No hay nóminas registradas aún.</p>
+            <a href="{{ url_for('attendance_list') }}" class="btn btn-primary btn-sm">Registrar asistencias primero</a>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
