@@ -49,6 +49,7 @@
             <th style="width:160px">Monto</th>
             <th class="text-end">Banco</th>
             <th class="text-end">Efectivo</th>
+            <th class="text-center">Acción</th>
           </tr>
         </thead>
         <tbody>
@@ -86,9 +87,21 @@
             <td class="text-end fw-semibold" id="efectivo_{{ w.id }}">
               ${{ '%.2f' | format(efectivo) }}
             </td>
+            <td class="text-center">
+              {% if p %}
+              <form method="post" action="{{ url_for('admin_pagos_delete', payroll_id=p.id) }}"
+                    onsubmit="return confirm('¿Eliminar pago de {{ w.name }}?')">
+                <input type="hidden" name="week_id" value="{{ selected_week.id }}">
+                <input type="hidden" name="project_id" value="{{ selected_project_id or '' }}">
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                  <i class="bi bi-trash"></i>
+                </button>
+              </form>
+              {% endif %}
+            </td>
           </tr>
           {% else %}
-          <tr><td colspan="7" class="text-center text-muted py-4">No hay trabajadores fijo/destajo para este filtro.</td></tr>
+          <tr><td colspan="8" class="text-center text-muted py-4">No hay trabajadores fijo/destajo para este filtro.</td></tr>
           {% endfor %}
         </tbody>
       </table>
