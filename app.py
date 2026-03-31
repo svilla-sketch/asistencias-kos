@@ -79,6 +79,7 @@ class Worker(db.Model):
     clabe = db.Column(db.String(20))
     imss_enrolled = db.Column(db.Boolean, default=False)   # en nómina IMSS/Santander
     imss_weekly_amount = db.Column(db.Float, default=2330.59)
+    pay_frequency = db.Column(db.String(20), default='semanal')  # semanal/quincenal/mensual
     active = db.Column(db.Boolean, default=True)
     hire_date = db.Column(db.Date)
     termination_date = db.Column(db.Date)
@@ -813,6 +814,8 @@ with app.app_context():
             _conn.execute(text("ALTER TABLE worker ADD COLUMN imss_enrolled INTEGER DEFAULT 0"))
         if 'imss_weekly_amount' not in _cols:
             _conn.execute(text("ALTER TABLE worker ADD COLUMN imss_weekly_amount REAL DEFAULT 2330.59"))
+        if 'pay_frequency' not in _cols:
+            _conn.execute(text("ALTER TABLE worker ADD COLUMN pay_frequency VARCHAR(20) DEFAULT 'semanal'"))
     if PayScale.query.count() == 0:
         seed_tabulador()
     if Project.query.count() == 0:
@@ -829,60 +832,26 @@ with app.app_context():
 
 @app.route('/admin/pagos')
 def admin_pagos():
-    weeks = AttendanceWeek.query.order_by(AttendanceWeek.week_start.desc()).all()
-    projects = Project.query.order_by(Project.name).all()
-    selected_week_id = request.args.get('week_id', type=int)
-    selected_project_id = request.args.get('project_id', type=int)
-    if not selected_week_id and weeks:
-        selected_week_id = weeks[0].id
-    selected_week = AttendanceWeek.query.get(selected_week_id) if selected_week_id else None
-    workers_query = Worker.query.filter_by(active=True)
-    if selected_project_id:
-        workers_query = workers_query.filter_by(project_id=selected_project_id)
-    fijo_workers = workers_query.filter(Worker.work_type.in_(['fijo', 'destajo'])).order_by(Worker.name).all()
-    payrolls = {}
-    if selected_week:
-        for p in Payroll.query.filter_by(week_id=selected_week.id).all():
-            payrolls[p.worker_id] = p
-    return render_template('admin_pagos.html',
-        weeks=weeks, projects=projects,
-        selected_week=selected_week,
-        selected_project_id=selected_project_id,
-        fijo_workers=fijo_workers,
-        payrolls=payrolls)
+    admin_project = Project.query.filter_by(code='ADMIN').first()
+    workers = []
+    if admin_project:
+        workers = Worker.query.filter_by(
+            project_id=admin_project.id, active=True
+        ).order_by(Worker.name).all()
+    return render_template('admin_pagos.html', workers=workers)
 
 @app.route('/admin/pagos/save', methods=['POST'])
 def admin_pagos_save():
-    week_id = request.form.get('week_id', type=int)
-    project_id = request.form.get('project_id', type=int)
-    if not week_id:
-        flash('Selecciona una semana', 'danger')
-        return redirect(url_for('admin_pagos'))
     for key, value in request.form.items():
-        if key.startswith('pay_'):
+        if key.startswith('monto_'):
             worker_id = int(key.split('_')[1])
-            amount = float(value) if value else 0.0
-            pay_type = request.form.get(f'type_{worker_id}', 'semanal')
-            payroll = Payroll.query.filter_by(week_id=week_id, worker_id=worker_id).first()
-            if not payroll:
-                w = Worker.query.get(worker_id)
-                payroll = Payroll(week_id=week_id, worker_id=worker_id)
-                db.session.add(payroll)
-            else:
-                w = payroll.worker
-            if pay_type == 'quincenal':
-                payroll.extra_pay = amount
-            else:
-                payroll.fixed_pay = amount if hasattr(payroll, 'fixed_pay') else None
-                payroll.extra_pay = amount
-            payroll.total_pay = (payroll.attendance_pay or 0) + (payroll.extra_pay or 0) + (payroll.bonus_pay or 0)
-            enrolled = w.imss_enrolled if w else False
-            amt = w.imss_weekly_amount if w else 0
-            payroll.bank_pay = (amt or 2330.59) if enrolled else 0
-            payroll.cash_pay = max(0, (payroll.total_pay or 0) - (payroll.bank_pay or 0))
+            w = Worker.query.get(worker_id)
+            if w:
+                w.fixed_weekly = float(value) if value else 0.0
+                w.pay_frequency = request.form.get(f'freq_{worker_id}', 'semanal')
     db.session.commit()
-    flash('Pagos guardados correctamente', 'success')
-    return redirect(url_for('admin_pagos', week_id=week_id, project_id=project_id or ''))
+    flash('Configuración de pagos actualizada.', 'success')
+    return redirect(url_for('admin_pagos'))
 
 
 @app.route('/admin/pagos/delete/<int:payroll_id>', methods=['POST'])
