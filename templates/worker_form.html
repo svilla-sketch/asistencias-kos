@@ -1,0 +1,198 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Editar' if worker else 'Alta' }} Trabajador{% endblock %}
+{% block content %}
+<div class="d-flex align-items-center mb-3 gap-2">
+  <a href="{{ url_for('workers') }}" class="btn btn-sm btn-outline-secondary"><i class="bi bi-arrow-left"></i></a>
+  <h5 class="mb-0 fw-bold">{{ 'Editar trabajador' if worker else 'Alta de trabajador' }}</h5>
+</div>
+
+<form method="post">
+  <input type="hidden" name="next" value="{{ request.referrer or url_for('workers') }}">
+  <div class="row g-3">
+
+    <!-- Datos generales -->
+    <div class="col-md-6">
+      <div class="card h-100">
+        <div class="card-header">Datos generales</div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nombre completo <span class="text-danger">*</span></label>
+            <input type="text" name="name" class="form-control" value="{{ worker.name if worker else '' }}" required placeholder="Pedro Larios Hernández">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Proyecto <span class="text-danger">*</span></label>
+            <select name="project_id" class="form-select" required>
+              <option value="">Seleccionar...</option>
+              {% for p in projects %}
+              <option value="{{ p.id }}"
+                {{ 'selected' if (worker and worker.project_id == p.id) or (not worker and preselect == p.id) }}>
+                {{ p.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Equipo / Cuadrilla</label>
+            <input type="text" name="team" class="form-control" value="{{ worker.team if worker else '' }}" placeholder="Pedro L, Juan V, …">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Fecha de ingreso</label>
+            <input type="date" name="hire_date" class="form-control"
+              value="{{ worker.hire_date.strftime('%Y-%m-%d') if worker and worker.hire_date else '' }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Notas</label>
+            <textarea name="notes" class="form-control" rows="2">{{ worker.notes if worker else '' }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tipo y sueldo -->
+    <div class="col-md-6">
+      <div class="card mb-3">
+        <div class="card-header">Actividad y sueldo</div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Actividad</label>
+            <select name="trade" id="tradeSelect" class="form-select">
+              <option value="">Seleccionar...</option>
+              {% for t in trades %}
+              <option value="{{ t }}" {{ 'selected' if worker and worker.trade == t }}>{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Puesto</label>
+            <select name="position" id="positionSelect" class="form-select">
+              <option value="">Seleccionar...</option>
+              {% if worker and worker.position %}
+              <option value="{{ worker.position }}" selected>{{ worker.position }}</option>
+              {% endif %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Nivel tabulador</label>
+            <select name="level" class="form-select">
+              <option value="">Seleccionar...</option>
+              {% for l in levels %}
+              <option value="{{ l }}" {{ 'selected' if worker and worker.level == l }}>{{ l }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="mb-3">
+            <label class="form-label fw-semibold">Tipo de pago</label>
+            <div class="d-flex gap-3">
+              {% for wt in work_types %}
+              <div class="form-check">
+                <input class="form-check-input" type="radio" name="work_type" id="wt_{{ wt }}"
+                  value="{{ wt }}" {{ 'checked' if (worker and worker.work_type == wt) or (not worker and wt == 'asistencia') }}
+                  onchange="toggleFixed()">
+                <label class="form-check-label" for="wt_{{ wt }}">
+                  {% if wt == 'asistencia' %}Por asistencia
+                  {% elif wt == 'destajo' %}Destajo
+                  {% else %}Sueldo fijo{% endif %}
+                </label>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          <div id="fixedWeeklyDiv" class="mb-3" style="display:none">
+            <label class="form-label fw-semibold">Sueldo fijo semanal ($)</label>
+            <input type="number" name="fixed_weekly" class="form-control" step="0.01"
+              value="{{ worker.fixed_weekly if worker else 0 }}">
+          </div>
+          <hr>
+          <div class="mb-2">
+            <div class="form-check form-switch">
+              <input class="form-check-input" type="checkbox" name="imss_enrolled" id="imssToggle"
+                value="1" {{ 'checked' if worker and worker.imss_enrolled }}
+                onchange="document.getElementById('imssAmountDiv').style.display=this.checked?'':'none'">
+              <label class="form-check-label fw-semibold" for="imssToggle">
+                <i class="bi bi-bank me-1"></i>En nómina IMSS / Santander
+              </label>
+            </div>
+            <small class="text-muted">Pago fijo semanal vía transferencia bancaria</small>
+          </div>
+          <div id="imssAmountDiv" class="mb-3" style="display:{{ '' if worker and worker.imss_enrolled else 'none' }}">
+            <label class="form-label fw-semibold">Monto semanal IMSS ($)</label>
+            <input type="number" name="imss_weekly_amount" class="form-control" step="0.01"
+              value="{{ worker.imss_weekly_amount if worker else 2330.59 }}"
+              placeholder="2330.59">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Datos bancarios -->
+    <div class="col-12">
+      <div class="card">
+        <div class="card-header">Datos bancarios</div>
+        <div class="card-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">Banco</label>
+              <input type="text" name="bank_name" class="form-control" value="{{ worker.bank_name if worker else '' }}" placeholder="BBVA, Banorte, HSBC…">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">No. de cuenta</label>
+              <input type="text" name="bank_account" class="form-control" value="{{ worker.bank_account if worker else '' }}" placeholder="1234567890">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label fw-semibold">CLABE</label>
+              <input type="text" name="clabe" class="form-control" value="{{ worker.clabe if worker else '' }}" placeholder="18 dígitos" maxlength="18">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 d-flex gap-2">
+      <button type="submit" class="btn btn-primary">
+        <i class="bi bi-check-lg me-1"></i>{{ 'Guardar cambios' if worker else 'Dar de alta' }}
+      </button>
+      <a href="{{ url_for('workers') }}" class="btn btn-outline-secondary">Cancelar</a>
+    </div>
+
+  </div>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+const positionsData = {{ positions | tojson }};
+
+function toggleFixed() {
+  const wt = document.querySelector('input[name=work_type]:checked')?.value;
+  document.getElementById('fixedWeeklyDiv').style.display = wt === 'fijo' ? '' : 'none';
+}
+
+document.getElementById('tradeSelect').addEventListener('change', function() {
+  const trade = this.value;
+  const sel = document.getElementById('positionSelect');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Seleccionar...</option>';
+  (positionsData[trade] || []).forEach(pos => {
+    const opt = document.createElement('option');
+    opt.value = pos; opt.textContent = pos;
+    if (pos === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+});
+
+// Init
+toggleFixed();
+// Pre-populate positions if trade already selected
+const trade = document.getElementById('tradeSelect').value;
+if (trade) {
+  const sel = document.getElementById('positionSelect');
+  const current = sel.querySelector('option[selected]')?.value || '';
+  sel.innerHTML = '<option value="">Seleccionar...</option>';
+  (positionsData[trade] || []).forEach(pos => {
+    const opt = document.createElement('option');
+    opt.value = pos; opt.textContent = pos;
+    if (pos === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+</script>
+{% endblock %}
